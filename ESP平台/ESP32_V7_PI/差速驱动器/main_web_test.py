@@ -1,0 +1,64 @@
+from microdot import Microdot
+import time
+from machine import freq
+import network
+import os
+freq(240000000)
+
+with open('index.html', 'r') as f:
+    html = f.read()
+
+def connect(SSID,PASSWORD):
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    if not wlan.isconnected():
+        print('connecting to network...')
+        wlan.connect(SSID, PASSWORD)
+        while not wlan.isconnected():
+            pass
+        print('network config: ', wlan.ifconfig())
+def hotspot(SSID="ESP32_V7_PI", PASSWORD="12345678"):
+    ap = network.WLAN(network.AP_IF)
+    ap.active(True)
+    # 设置接入点参数
+    ap.config(essid=SSID, authmode=network.AUTH_WPA_WPA2_PSK, password=PASSWORD)
+    print('AP IP address:', ap.ifconfig()[0])
+
+hotspot()
+#connect("TP_LINK_407","xamdlgxy")
+
+app = Microdot()
+# 存储摇杆数据的全局变量
+joystick_data = {'joy1': {'x':0, 'y':0}, 'joy2': {'x':0, 'y':0}}
+
+
+@app.route('/')
+def index(request):
+    return html, 200, {'Content-Type': 'text/html'}
+
+@app.route('/get_joystick_data', methods=['POST'])
+def handle_joystick(request):
+    global joystick_data
+    data = request.json
+    
+    # 处理摇杆1数据
+    if 'x1' in data and 'y1' in data:
+        joystick_data['joy1']['x'] = float(data['x1'])
+        joystick_data['joy1']['y'] = float(data['y1'])
+    
+    # 处理摇杆2数据
+    if 'x2' in data and 'y2' in data:
+        joystick_data['joy2']['x'] = float(data['x2'])
+        joystick_data['joy2']['y'] = float(data['y2'])
+    
+    print(f"Joy1: ({joystick_data['joy1']['x']:.2f}, {joystick_data['joy1']['y']:.2f}) | "
+          f"Joy2: ({joystick_data['joy2']['x']:.2f}, {joystick_data['joy2']['y']:.2f})")
+    
+    return {'status': 'updated'}
+
+
+
+if __name__ == '__main__':
+    app.run(debug=False,port=80)
+
+
