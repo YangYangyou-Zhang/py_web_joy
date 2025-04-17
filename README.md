@@ -6,6 +6,9 @@ Based on frameworks such as Flask and MicroDot, a web server is provided on Linu
 
 #### 软件架构
 python3&micropthon
+
+#### 开发日志
+```
 2025_4_16 micropython代码测试完成，已经成功上传至开源平台
 2025_5_17 开源ESP32S3_V7_PI电路图原理图等等全部资料至立创开源平台（主控是esp32s3的开发板均兼容本程序，仅需按照实际修改引脚即可）
-
+```
