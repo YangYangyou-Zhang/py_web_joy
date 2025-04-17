@@ -5,18 +5,7 @@
 Based on frameworks such as Flask and MicroDot, a web server is provided on Linux platforms such as Raspberry Pi and Orange Pi, or embedded platforms such as Micropython, allowing users to open web pages and use virtual joysticks to manipulate devices such as robots, unmanned vehicles, drones, etc. through their mobile phones or computers. In the near future, all development work for the Linux embedded version (complete Python environment) and the ESP platform (micropython environment) will be completed. If the follow-up work goes smoothly, in addition to the ESP32 series development project, the ESP drone project will also be integrated into the sub projects of this project.
 
 #### 软件架构
-软件架构说明
-
-
-#### 安装教程
-
-1.  xxxx
-2.  xxxx
-3.  xxxx
-
-#### 使用说明
-
-1.  xxxx
-2.  xxxx
-3.  xxxx
+python3&micropthon
+2025_4_16 micropython代码测试完成，已经成功上传至开源平台
+2025_5_17 开源ESP32S3_V7_PI电路图原理图等等全部资料至立创开源平台（主控是esp32s3的开发板均兼容本程序，仅需按照实际修改引脚即可）
 
