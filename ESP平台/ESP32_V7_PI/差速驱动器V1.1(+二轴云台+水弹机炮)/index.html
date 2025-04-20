@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ZH-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.7, maximum-scale=1.0, user-scalable=no">
+    <title>YYY system Control</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .joystick {
+            width: 200px;
+            height: 200px;
+            background: rgb(204,204,255);
+            border-radius: 15px;
+            position: relative;
+            margin: 20px;
+        }
+        #joystick3 {
+            width: 800px;
+            height: 20px;
+            margin: 15px;
+        }
+        .joystick-handle {
+            width: 50px;
+            height: 50px;
+            background: rgb(253, 183, 207);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            touch-action: none;
+        }
+        #joystick3 .joystick-handle {
+            width: 70px;
+            height: 70px;
+        }
+        h1 {
+            text-align: center;
+            margin: 2px 0;
+        }
+        h4 {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        img {
+            margin: 0 2px;
+        }
+        .middle-joystick {
+            margin: 10px 0;
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+        .lock-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+            margin: 0 10px;
+        }
+        .lock-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .lock-slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .lock-slider {
+            background-color: #2196F3;
+        }
+        input:checked + .lock-slider:before {
+            transform: translateX(26px);
+        }
+
+        /* 第三个摇杆特殊样式 */
+        #joystick3 {
+            background: 
+                linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px),
+                radial-gradient(circle at center, rgba(255,255,255,0.5) 20%, transparent 30%),
+                rgb(204,204,255);
+            background-size: 20px 20px;
+        }
+        #joystick3 .joystick-handle {
+            background: linear-gradient(45deg, #a8edea 0%, #fed6e3 100%);
+            box-shadow: 0 0 10px rgba(168,237,234,0.5);
+        }
+        #joystick3::after {
+            content: "DRAG";
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #666;
+            font-weight: bold;
+            text-shadow: 0 1px 1px white;
+        }
+    </style>
+</head>
+<body>
+    <h3>
+        BY: Yangyangyou-Zhang,洋洋柚 +_+ 共同研发项目
+        
+        <div style="margin:10px">
+            位置锁定：
+            <label class="lock-switch">
+                <input type="checkbox" id="restoreSwitch" checked>
+                <span class="lock-slider"></span>
+            </label>
+        </div>
+    </h3>
+
+    <div class="middle-joystick">
+        <div class="joystick" id="joystick3">
+            <div class="joystick-handle"></div>
+        </div>
+    </div>
+
+    <h4>
+        <div class="joystick" id="joystick1">
+            <div class="joystick-handle"></div>
+        </div>
+        <img src="/stream" width="430" height="320">
+        <div class="joystick" id="joystick2">
+            <div class="joystick-handle"></div>
+        </div>
+    </h4>
+
+    <script>
+        let lastSendTime = 0;
+        const SEND_INTERVAL = 150;
+        let pendingData = {};
+        let sendTimeout = null;
+        let restoreSettings = {
+            1: true,  // 摇杆1始终锁定
+            2: true,  // 摇杆2始终锁定
+            3: true   // 摇杆3初始锁定，受开关控制
+        };
+
+        document.getElementById('restoreSwitch').addEventListener('change', function(e) {
+            restoreSettings[3] = e.target.checked; // 只控制第三个摇杆
+        });
+
+        function setupJoystick(joystick, handle, id, sendDataCallback) {
+            let activeTouchId = null;
+            let isMouseDown = false;
+            let currentRect = null;
+            let initCounter = 2;
+
+            const updateRect = () => {
+                currentRect = joystick.getBoundingClientRect();
+                if(initCounter < 3 && (!currentRect.width || currentRect.width === 0)) {
+                    setTimeout(updateRect, 50);
+                    initCounter++;
+                }
+            };
+
+            const processStart = (input, isMouse) => {
+                updateRect();
+                if(isInJoystickArea(input)) {
+                    if(isMouse) {
+                        isMouseDown = true;
+                    } else {
+                        activeTouchId = input.identifier;
+                    }
+                    updatePosition(input);
+                    return true;
+                }
+                return false;
+            };
+
+            const handleTouchStart = (e) => {
+                for(const touch of e.touches) {
+                    if(!activeTouchId && processStart(touch, false)) {
+                        e.preventDefault();
+                        break;
+                    }
+                }
+            };
+
+            const handleTouchMove = (e) => {
+                for(const touch of e.touches) {
+                    if(touch.identifier === activeTouchId) {
+                        updateRect();
+                        updatePosition(touch);
+                        e.preventDefault();
+                        return;
+                    }
+                }
+            };
+
+            const handleMouseStart = (e) => {
+                if(processStart(e, true)) {
+                    e.preventDefault();
+                }
+            };
+
+            const handleMouseMove = (e) => {
+                if(isMouseDown) {
+                    updatePosition(e);
+                    e.preventDefault();
+                }
+            };
+
+            const handleEnd = (e) => {
+                // 根据摇杆ID判断是否恢复
+                if(restoreSettings[id]) {  // 重点修改处
+                    if(e.type === 'mouseup') {
+                        if(isMouseDown) {
+                            resetControls();
+                            sendDataCallback(0, 0);
+                        }
+                    } 
+                    else {
+                        for(const touch of e.changedTouches) {
+                            if(touch.identifier === activeTouchId) {
+                                resetControls();
+                                sendDataCallback(0, 0);
+                                break;
+                            }
+                        }
+                    }
+                }
+            };
+
+            const updatePosition = (input) => {
+                updateRect();
+                const centerX = currentRect.left + currentRect.width/2;
+                const centerY = currentRect.top + currentRect.height/2;
+                
+                let deltaX = input.clientX - centerX;
+                let deltaY = input.clientY - centerY;
+                const maxDist_x = currentRect.width/2;
+                const maxDist_y = currentRect.height/2;
+                if(deltaX > maxDist_x) {
+                    deltaX = maxDist_x;
+                } else if(deltaX < -maxDist_x) {
+                    deltaX = -maxDist_x;
+                }
+                if(deltaY > maxDist_y) {
+                    deltaY = maxDist_y;
+                } else if(deltaY < -maxDist_y) {
+                    deltaY = -maxDist_y;
+                }
+                handle.style.left = `${50 + (deltaX/maxDist_x)*50}%`;
+                handle.style.top = `${50 + (deltaY/maxDist_y)*50}%`;
+
+                sendDataCallback(
+                    +(deltaX/maxDist_x).toFixed(2),
+                    +(-deltaY/maxDist_y).toFixed(2)
+                );
+            };
+
+            const isInJoystickArea = (input) => {
+                return input.clientX >= currentRect.left && 
+                    input.clientX <= currentRect.right &&
+                    input.clientY >= currentRect.top &&
+                    input.clientY <= currentRect.bottom;
+            };
+
+            const resetControls = () => {
+                activeTouchId = null;
+                isMouseDown = false;
+                handle.style.left = '50%';
+                handle.style.top = '50%';
+            };
+
+            const initJoystick = () => {
+                updateRect();
+                [0, 100, 200].forEach(timeout => {
+                    setTimeout(updateRect, timeout);
+                });
+            };
+
+            joystick.addEventListener('mousedown', handleMouseStart);
+            joystick.addEventListener('touchstart', handleTouchStart, { passive: false });
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('touchmove', handleTouchMove, { passive: false });
+            document.addEventListener('mouseup', handleEnd);
+            document.addEventListener('touchend', handleEnd);
+            window.addEventListener('resize', updateRect);
+            window.addEventListener('orientationchange', updateRect);
+
+            initJoystick();
+        }
+
+        function sendJoystickData(id, x, y) {
+            pendingData[`x${id}`] = x;
+            pendingData[`y${id}`] = y;
+
+            const now = Date.now();
+            if(now - lastSendTime >= SEND_INTERVAL) {
+                sendRequest();
+                lastSendTime = now;
+            } else {
+                clearTimeout(sendTimeout);
+                sendTimeout = setTimeout(() => {
+                    sendRequest();
+                    lastSendTime = Date.now();
+                }, SEND_INTERVAL - (now - lastSendTime));
+            }
+        }
+
+        function sendRequest() {
+            if(Object.keys(pendingData).length === 0) return;
+
+            fetch('/get_joystick_data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(pendingData)
+            }).catch(error => console.warn('Network error:', error));
+
+            pendingData = {};
+        }
+
+        const initJoysticks = () => {
+            [1, 2, 3].forEach(id => {
+                const joystick = document.querySelector(`#joystick${id}`);
+                const handle = joystick.querySelector('.joystick-handle');
+                setupJoystick(joystick, handle, id, (x, y) => sendJoystickData(id, x, y));
+            });
+        };
+
+        if(document.readyState === 'complete') {
+            initJoysticks();
+        } else {
+            window.addEventListener('load', initJoysticks);
+            document.addEventListener('DOMContentLoaded', initJoysticks);
+            setTimeout(initJoysticks, 1000);
+        }
+    </script>
+</body>
+</html>
