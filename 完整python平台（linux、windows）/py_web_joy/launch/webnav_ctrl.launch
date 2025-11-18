@@ -1,0 +1,10 @@
+<launch>
+    <!-- 启动Flask控制程序 -->
+    <node name="manctrl_flask" 
+          pkg="py_web_joy" 
+          type="nav_flask.py" 
+          output="screen"
+          respawn="false"
+          required="true"
+          cwd="node"/>
+</launch>
