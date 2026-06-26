@@ -1,6 +1,6 @@
 项目简介：
 
-web_joy_ros是一个基于ROS的web控制系统的linux_ros迁移版本，可以让用户通过浏览器控制无人机、小车或者机器人。
+py_web_joy是一个基于ROS1的web控制系统的linux_ros迁移版本完整包，轻松让您的机器拥有遥控功能，可以让用户复制并且编译后直接运行，通过浏览器控制机器人或者小车，新版本还提供了外部导航接口，允许总控节点控制多个机器人。
 
 项目结构：
 ```
@@ -22,13 +22,21 @@ py_web_joy
 ```
 
 关于配置文件的修改：
-#在flask_test.py中，第18行订阅速度控制话题'/cmd_vel'，可在此处修改。
+#manctrl_flask.py中，第15行[cv2.IMWRITE_JPEG_QUALITY, 20]修改为需要的压缩率，可在此处修改。
+20-30低质量、50-70中等质量、80-100高质量。video = True表示视频流开启，False表示视频流关闭。
+```python
+# 全局变量定义
+video = True
+encode_param = [cv2.IMWRITE_JPEG_QUALITY, 20] # JPEG编码参数，压缩率越小越节约带宽
+```
+
+#manctrl_flask.py中，第61行订阅速度控制话题'/cmd_vel'，可在此处修改。
 ```python
 # 初始化ROS发布者
 cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
 ```
 
-#在flask_test.py中，在42到56行，修改此处*1系数来修改三个摇杆对应的摇杆量，加正负可以取反。
+#manctrl_flask.py中，在153到163行，修改此处*1系数来修改三个摇杆对应的摇杆量，加正负可以取反。
 ```python
     # 处理摇杆1数据
     if 'x1' in data and 'y1' in data:
@@ -46,42 +54,42 @@ cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
         joystick_data['joy3']['y'] = float(data['y3'])*1.0
 ```
 
-#在flask_test.py中，在59到85行，提供了四种操作方式，通过注释使能其中的一种，默认为阿克曼差速底盘。
+#manctrl_flask.py中，在167到192行，提供了四种操作方式，通过注释使能其中的一种，默认为阿克曼差速底盘。
 ```python
 #差速/阿克曼小车控制
 twist_msg.linear.x = joystick_data['joy2']['y']  # 假设y2控制速度
 twist_msg.angular.z = joystick_data['joy2']['x']  # 假设x2控制转向角
 
 """
-#全向底盘/麦克纳姆轮小车控制
+# 全向底盘/麦克纳姆轮小车控制
 twist_msg.linear.x = joystick_data['joy2']['y']  # 假设y2控制前后速度
 twist_msg.linear.y = joystick_data['joy2']['x']  # 假设x2控制左右速度
 twist_msg.angular.z = joystick_data['joy1']['x']  # 假设x1控制转向角
 """
 """
-#线速度控制无人机（多旋翼/垂直起降飞行器）(美国手)
-twist_msg.linear.x = joystick_data['joy2']['y']  # 假设y2控制前后速度
-twist_msg.linear.y = joystick_data['joy2']['x']  # 假设x2控制左右速度
-twist_msg.linear.z = joystick_data['joy1']['y']  # 假设x1控制上下速度
-twist_msg.angular.z = joystick_data['joy1']['x']  # 假设x1控制转向角
-"""
-"""
-#角速度控制无人机（手动多旋翼/FPV）(美国手)
+# 线速度控制无人机（多旋翼/垂直起降飞行器）(美国手)
 twist_msg.linear.x = joystick_data['joy2']['y']  # 假设y2控制前后速度
 twist_msg.linear.y = joystick_data['joy2']['x']  # 假设x2控制左右速度
 twist_msg.linear.z = joystick_data['joy1']['y']  # 假设x1控制上下速度
 twist_msg.angular.z = joystick_data['joy1']['x']  # 假设x1控制转向角
+"""
+"""
+# 线速度控制无人机（多旋翼/垂直起降飞行器）(日本手)
+target_vel['linear']['x'] = joystick_data['joy1']['y'] * MAX_LINEAR_VEL  # 假设y1控制前后速度
+target_vel['linear']['y'] = joystick_data['joy1']['x'] * MAX_LINEAR_VEL  # 假设x1控制左右速度
+target_vel['linear']['z'] = joystick_data['joy2']['y'] * MAX_LINEAR_VEL  # 假设x2控制上下速度
+target_vel['angular']['z'] = joystick_data['joy2']['x'] * MAX_ANGULAR_VEL  # 假设x2控制转向角
 """
 ```
 
-#在flask_test.py中，第101行为用于浏览器访问的端口号。
+#manctrl_flask.py中，第207行为用于浏览器访问的端口号。
 ```python
 app.run(debug=True, host='0.0.0.0', port=18848)
 ```
 
-#在index.html中，第145行"http://192.168.12.1:8080/stream?topic=/camera/rgb/image_raw"修改为可用视频流的地址。
+#在index.html中，第145行"/video_feed"修改为可用视频流的地址。
 ```html
-<img src="http://192.168.12.1:8080/stream?topic=/camera/rgb/image_raw" width="430" height="320">
+<img src="/video_feed" width="430" height="320">
 ```
 
 #在nav_flask.py中，第14行设置运动信息输出目标节点('move_base')。第38行修改为实际机器人tf坐标("base_link")。第67行修改为实际机器人tf坐标("base_link")。第85行为ip与端口号设置(host='0.0.0.0', port=13399)。

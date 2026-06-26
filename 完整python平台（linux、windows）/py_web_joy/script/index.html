@@ -142,7 +142,7 @@
         <div class="joystick" id="joystick1">
             <div class="joystick-handle"></div>
         </div>
-        <img src="http://192.168.12.1:8080/stream?topic=/camera/rgb/image_raw" width="430" height="320">
+        <img src="/video_feed" width="430" height="320">
         <div class="joystick" id="joystick2">
             <div class="joystick-handle"></div>
         </div>
@@ -150,13 +150,21 @@
 
     <script>
         let lastSendTime = 0;
-        const SEND_INTERVAL = 25;
+        const SEND_INTERVAL = 25; // 25毫秒发送一次，约40Hz
+        const HOLD_SEND_INTERVAL = 50; // 按住不动时，50毫秒发送一次，约20Hz
         let pendingData = {};
         let sendTimeout = null;
         let restoreSettings = {
             1: true,  // 摇杆1始终锁定
             2: true,  // 摇杆2始终锁定
             3: true   // 摇杆3初始锁定，受开关控制
+        };
+        
+        // 摇杆状态存储
+        let joystickStates = {
+            1: { x: 0, y: 0, active: false, holdInterval: null },
+            2: { x: 0, y: 0, active: false, holdInterval: null },
+            3: { x: 0, y: 0, active: false, holdInterval: null }
         };
 
         document.getElementById('restoreSwitch').addEventListener('change', function(e) {
@@ -185,7 +193,11 @@
                     } else {
                         activeTouchId = input.identifier;
                     }
+                    // 设置摇杆为激活状态
+                    joystickStates[id].active = true;
                     updatePosition(input);
+                    // 启动按住持续发送
+                    startHoldSending(id, sendDataCallback);
                     return true;
                 }
                 return false;
@@ -225,22 +237,39 @@
             };
 
             const handleEnd = (e) => {
-                // 根据摇杆ID判断是否恢复
-                if(restoreSettings[id]) {  // 重点修改处
-                    if(e.type === 'mouseup') {
-                        if(isMouseDown) {
-                            resetControls();
-                            sendDataCallback(0, 0);
+                let shouldEnd = false;
+                
+                if(e.type === 'mouseup') {
+                    if(isMouseDown) {
+                        shouldEnd = true;
+                        isMouseDown = false;
+                    }
+                } else {
+                    for(const touch of e.changedTouches) {
+                        if(touch.identifier === activeTouchId) {
+                            shouldEnd = true;
+                            activeTouchId = null;
+                            break;
                         }
-                    } 
-                    else {
-                        for(const touch of e.changedTouches) {
-                            if(touch.identifier === activeTouchId) {
-                                resetControls();
-                                sendDataCallback(0, 0);
-                                break;
-                            }
-                        }
+                    }
+                }
+                
+                if(shouldEnd) {
+                    // 停止按住持续发送
+                    stopHoldSending(id);
+                    // 设置摇杆为非激活状态
+                    joystickStates[id].active = false;
+                    
+                    // 根据摇杆ID判断是否恢复
+                    if(restoreSettings[id]) {
+                        resetControls();
+                        // 发送最后一次归零数据
+                        sendDataCallback(0, 0);
+                        joystickStates[id].x = 0;
+                        joystickStates[id].y = 0;
+                    } else {
+                        // 不恢复，保持当前位置，但停止发送
+                        joystickStates[id].active = false;
                     }
                 }
             };
@@ -267,10 +296,15 @@
                 handle.style.left = `${50 + (deltaX/maxDist_x)*50}%`;
                 handle.style.top = `${50 + (deltaY/maxDist_y)*50}%`;
 
-                sendDataCallback(
-                    +(deltaX/maxDist_x).toFixed(2),
-                    +(-deltaY/maxDist_y).toFixed(2)
-                );
+                const x = +(deltaX/maxDist_x).toFixed(2);
+                const y = +(-deltaY/maxDist_y).toFixed(2);
+                
+                // 更新摇杆状态
+                joystickStates[id].x = x;
+                joystickStates[id].y = y;
+                
+                // 立即发送数据
+                sendDataCallback(x, y);
             };
 
             const isInJoystickArea = (input) => {
@@ -304,6 +338,27 @@
             window.addEventListener('orientationchange', updateRect);
 
             initJoystick();
+        }
+
+        function startHoldSending(id, sendDataCallback) {
+            // 如果已经有定时器，先清除
+            if (joystickStates[id].holdInterval) {
+                clearInterval(joystickStates[id].holdInterval);
+            }
+            
+            // 创建新的定时器，在按住不动时持续发送数据
+            joystickStates[id].holdInterval = setInterval(() => {
+                if (joystickStates[id].active) {
+                    sendDataCallback(joystickStates[id].x, joystickStates[id].y);
+                }
+            }, HOLD_SEND_INTERVAL);
+        }
+
+        function stopHoldSending(id) {
+            if (joystickStates[id].holdInterval) {
+                clearInterval(joystickStates[id].holdInterval);
+                joystickStates[id].holdInterval = null;
+            }
         }
 
         function sendJoystickData(id, x, y) {
