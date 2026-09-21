@@ -70,6 +70,7 @@ def smooth_velocity_control():
     """平滑速度控制线程"""
     global current_vel, target_vel, last_input_time, last_update_time
     
+    last_twist_msg = None
     while not rospy.is_shutdown():
         with data_lock:
             current_time = time.time()
@@ -109,7 +110,9 @@ def smooth_velocity_control():
             twist_msg.angular.y = current_vel['angular']['y']
             twist_msg.angular.z = current_vel['angular']['z']
             
-            cmd_vel_pub.publish(twist_msg)
+            if twist_msg != last_twist_msg:
+                cmd_vel_pub.publish(twist_msg)
+                last_twist_msg = twist_msg
             
             """print(f"Target: L({target_vel['linear']['x']:.2f},{target_vel['linear']['y']:.2f},{target_vel['linear']['z']:.2f}) "
                   f"A({target_vel['angular']['x']:.2f},{target_vel['angular']['y']:.2f},{target_vel['angular']['z']:.2f}) | "
@@ -191,7 +194,6 @@ def handle_joystick(request_data=None):
         """
         
     return flask.jsonify({'status': 'updated'})
-
 
 if __name__ == '__main__':
     try:
