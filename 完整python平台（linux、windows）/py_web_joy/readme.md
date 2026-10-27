@@ -82,6 +82,22 @@ target_vel['angular']['z'] = joystick_data['joy2']['x'] * MAX_ANGULAR_VEL  # 假
 """
 ```
 
+#manctrl_flask.py中，速度平滑采用“加速/减速分离”，且线速度与角速度分别配置：加速用 ACCELERATION_*（取值大），减速用 DECELERATION_*（取值更大，停车更快）。速度绝对值增大视为加速，减小或穿越零点视为减速，可在此处按需调整。
+```python
+# 速度控制参数
+ACCELERATION_LINEAR = 0.25  # 加速度值 (m/s²)，速度绝对值增大时用
+ACCELERATION_ANGULAR = 0.2  # 加速度值 (rad/s²)，速度绝对值增大时用
+DECELERATION_LINEAR = 0.5  # 减速度值 (m/s²)，速度绝对值减小时用（比加速大，停得更快）
+DECELERATION_ANGULAR = 0.4  # 减速度值 (rad/s²)，速度绝对值减小时用（比加速大，停得更快）
+```
+
+#manctrl_flask.py中，差速/阿克曼底盘控制增加了“油门门控转向死区”：当油门（摇杆2的y轴）大于1/4满油门（即0.25）时启用转向死区，摇杆漂移量在死区内不输出，超过阈值后输出=转向值-阈值，用于抑制虚拟摇杆不可避免的偏移导致的误转向；油门较小时不启用，便于原地精细转向。
+```python
+# 转向死区：油门大于1/4油门值时生效，抑制虚拟摇杆漂移导致的误转向
+THROTTLE_STEER_GATE = 0.25  # 启用转向死区的油门阈值（归一化摇杆值，1.0为满油门）
+STEER_DEADZONE = 0.1  # 转向死区阈值（归一化摇杆值），超过后输出=转向值-阈值
+```
+
 #manctrl_flask.py中，第207行为用于浏览器访问的端口号。
 ```python
 app.run(debug=True, host='0.0.0.0', port=18848)
